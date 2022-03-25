@@ -3,6 +3,8 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -19,9 +21,10 @@ public class StreamsExercisesTest {
     @Test
     @DisplayName("Exercise 1 — Obtain a list of products belongs to category “Books” with price > 100")
     public void exercise1() {
-        var res = new ArrayList<Product>();
-
-        // res = your solution
+        var res = products.stream()
+                .filter( product -> product.getCategory().equalsIgnoreCase("Books"))
+                .filter( product -> product.getPrice() > 100)
+                .collect(Collectors.toList());
 
         assertEquals(1, res.size());
         assertEquals(8L, res.get(0).getId());
@@ -30,9 +33,12 @@ public class StreamsExercisesTest {
     @Test
     @DisplayName("Exercise 2 — Obtain a list of order with products belong to category “Baby”")
     public void exercise2() {
-        var res = new ArrayList<Order>();
-
-        // res = your solution
+        var res = orders.stream()
+                .filter(
+                        order -> order.getProducts().stream()
+                                .anyMatch(product -> product.getCategory().equalsIgnoreCase("Baby"))
+                )
+                .collect(Collectors.toList());
 
         assertEquals(1, res.size());
         assertEquals(7L, res.get(0).getId());
@@ -42,9 +48,10 @@ public class StreamsExercisesTest {
     @DisplayName("Exercise 3 — Obtain a list of product with category = “Toys” and then apply 10% discount")
     public void exercise3() {
         double discount = 0.9;
-        var res = new ArrayList<Product>();
-
-        // res = your solution
+        var res = products.stream()
+                .filter( product -> product.getCategory().equals("Toys"))
+                .map( product -> product.withPrice(product.getPrice() * discount))
+                .collect(Collectors.toList());
 
         var toyName =  res.get(0).getName();
         var beforeDiscount = products.stream().filter(product -> product.getName().equals(toyName)).findFirst();
@@ -56,9 +63,15 @@ public class StreamsExercisesTest {
     @Test
     @DisplayName("Exercise 4 — Obtain a list of products ordered by customer of tier 2 between 01-Feb-2021 and 01-Apr-2021")
     public void exercise4() {
-        var res = new ArrayList<Product>();
-
-        // res = your solution
+        var res = orders.stream()
+                .filter(order -> order.getCustomer().getTier() == 2)
+                .filter(order ->
+                        order.getOrderDate().isAfter(LocalDate.of(2021,2,1))
+                                && order.getOrderDate().isBefore(LocalDate.of(2021, 4, 1))
+                )
+                .flatMap(order -> order.getProducts().stream())
+                .distinct()
+                .collect(Collectors.toList());
 
         assertEquals(2, res.size());
         assertTrue(res.contains(products.get(4)));
@@ -68,9 +81,25 @@ public class StreamsExercisesTest {
     @Test
     @DisplayName("Exercise 5 — Get the cheapest products of “Books” category")
     public void exercise5() {
-        var res = new ArrayList<Product>();
+        /*
+        var res = products.stream()
+                .filter(product -> product.getName().equalsIgnoreCase("Books"))
+                .min(Comparator.comparing(Product::getPrice));
+        */
+        var minPrice =  products.stream()
+                .filter(
+                        product -> product.getCategory().equalsIgnoreCase("Books")
+                )
+                .mapToDouble(Product::getPrice).min();
 
-        // res = your solution
+        var res = minPrice.isPresent()
+                ? products.stream()
+                .filter(
+                        product -> product.getCategory().equalsIgnoreCase("Books"))
+                .filter(
+                        product -> product.getPrice() == minPrice.getAsDouble())
+                .collect(Collectors.toList())
+                : new ArrayList<Product>();
 
         assertEquals(1, res.size());
         assertEquals(9L, res.get(0).getId());
@@ -79,9 +108,10 @@ public class StreamsExercisesTest {
     @Test
     @DisplayName("Exercise 6 — Get the 3 most recent placed order")
     public void exercise6() {
-        var res = new ArrayList<Order>();
-
-        // res = your solution
+        var res = orders.stream()
+                .sorted(Comparator.comparing(Order::getDeliveryDate).reversed())
+                .limit(3)
+                .collect(Collectors.toList());
 
         assertEquals(4L,res.get(0).getId());
         assertEquals(5L, res.get(1).getId());
@@ -92,9 +122,13 @@ public class StreamsExercisesTest {
     @DisplayName("Exercise 7 — Get a list of orders which were ordered on 15-Mar-2021," +
             "log the order records to the console and then return its product list")
     public void exercise7() {
-        var res = new ArrayList<Order>();
-
-        // res = your solution
+        LocalDate mar152021 = LocalDate.of(2021, 3, 15);
+        var res = orders.stream()
+                .filter(order -> order.getOrderDate().isEqual(mar152021))
+                .peek(order -> System.out.println(order))
+                .flatMap(order -> order.getProducts().stream())
+                .distinct()
+                .collect(Collectors.toList());
 
         assertEquals(2, res.size());
         assertTrue(res.contains(products.get(5)));
@@ -104,9 +138,18 @@ public class StreamsExercisesTest {
     @Test
     @DisplayName("Exercise 8 — Calculate total lump sum of all orders placed in Feb 2021")
     public void exercise8() {
-        var res = -1.0;
-
-        // res = your solution
+        var feb012021 = LocalDate.of(2021, 02, 1);
+        var mar012021 = LocalDate.of(2021, 03, 1);
+        var res = orders.stream()
+                .filter(
+                        order -> order.getOrderDate().compareTo(feb012021) >= 0
+                                && order.getOrderDate().isBefore(mar012021)
+                )
+                .flatMap( order -> order.getProducts().stream())
+                //.collect(Collectors.summarizingDouble( p -> p.getPrice()))
+                //.getSum();
+                .mapToDouble(Product::getPrice)
+                .sum();
 
         assertEquals(100934.0, res);
     }
@@ -114,9 +157,13 @@ public class StreamsExercisesTest {
     @Test
     @DisplayName("Exercise 9 — Calculate order average payment placed on 14-Mar-2021")
     public void exercise9() {
-        var res = -1.0;
-
-        // res = your solution
+        var mar142021 = LocalDate.of(2021, 03, 14);
+        var res = orders.stream()
+                .filter(order -> order.getOrderDate().isEqual(mar142021))
+                .flatMap( order -> order.getProducts().stream())
+                .mapToDouble(  Product::getPrice)
+                .average()
+                .getAsDouble();
 
         assertEquals(74.5, res);
     }
@@ -125,11 +172,12 @@ public class StreamsExercisesTest {
     @DisplayName("Exercise 10 — Obtain a collection of statistic figures" +
             "(i.e. sum, average, max, min, count) for all products of category “Books”")
     public void exercise10() {
-        //var res = ;
-        var resMax = -1.0;
-        var resSum = -1.0;
-
-        // res = your solution
+        var res = products.stream()
+                .filter( product -> product.getCategory().equalsIgnoreCase("Books"))
+                .mapToDouble( product -> product.getPrice())
+                .summaryStatistics();
+        var resMax = res.getMax();
+        var resSum = res.getSum();
 
         assertEquals(340.0, resMax);
         assertEquals(574.0, resSum);
@@ -138,9 +186,13 @@ public class StreamsExercisesTest {
     @Test
     @DisplayName("Exercise 11 — Obtain a data map with order id and order’s product count")
     public void exercise11() {
-        var res = new HashMap<Long, Integer>();
-
-        // res = your solution
+        var res = orders.stream()
+                .collect(
+                        Collectors.toMap(
+                                order -> order.getId(),
+                                order -> order.getProducts().size()
+                        )
+                );
 
         assertEquals(2, res.get(1L));
         assertEquals(3, res.get(8L));
@@ -149,9 +201,10 @@ public class StreamsExercisesTest {
     @Test
     @DisplayName("Exercise 12 — Produce a data map with order records grouped by customer")
     public void exercise12() {
-        var res = new HashMap<Customer, List<Order>>();
-
-        // res = your solution
+        var res = orders.stream()
+                .collect(
+                        Collectors.groupingBy(order -> order.getCustomer())
+                );
 
         assertEquals(5, res.size());
         for (Customer customer : customers) {
@@ -164,9 +217,13 @@ public class StreamsExercisesTest {
     @Test
     @DisplayName("Exercise 13 — Produce a data map with order record and product total sum")
     public void exercise13() {
-        var res = new HashMap<Order, Double>();
-
-        // res = your solution
+        var res = orders.stream()
+                .collect(
+                        Collectors.toMap(
+                                Function.identity(),
+                                order -> order.getProducts().stream().mapToDouble( product -> product.getPrice()).sum()
+                        )
+                );
 
         assertEquals(8, res.size());
         assertEquals(205.0, res.get(orders.get(0)));
@@ -178,9 +235,13 @@ public class StreamsExercisesTest {
     @Test
     @DisplayName("Exercise 14 — Obtain a data map with list of product name by category")
     public void exercise14() {
-        var res = new HashMap<String, List<String>>();
-
-        // res = your solution
+        var res = products.stream()
+                .collect(
+                        Collectors.groupingBy(
+                                product -> product.getCategory().toLowerCase(),
+                                Collectors.mapping( product -> product.getName(), Collectors.toList())
+                        )
+                );
 
         assertEquals(4, res.size());
         assertEquals(5, res.get("cutlery").size());
@@ -192,9 +253,13 @@ public class StreamsExercisesTest {
     @Test
     @DisplayName("Exercise 15 — Get the most expensive product by category")
     public void exercise15() {
-        var res = new HashMap<String, Optional<Product>>();
-
-        // res = your solution
+        var res = products.stream()
+                .collect(
+                        Collectors.groupingBy(
+                                product -> product.getCategory().toLowerCase(),
+                                Collectors.maxBy(Comparator.comparing(Product::getPrice))
+                        )
+                );
 
         assertEquals(4, res.size());
         assertEquals(100500.0, res.get("cutlery").get().getPrice());
